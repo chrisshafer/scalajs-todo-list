@@ -11,7 +11,6 @@ import japgolly.scalajs.react.vdom.prefix_<^._
  */
 object ToDoApp extends JSApp {
 
-  val toDoList = scala.collection.mutable.Map[Int,String]()
 
   case class ItemProps(key: Int, value: String, remove: (Int) => Unit)
   val ListItem = ReactComponentB[ItemProps]("ToDoItem")
@@ -26,7 +25,7 @@ object ToDoApp extends JSApp {
       )
   }).build
 
-  case class ToDoListProps(items:scala.collection.mutable.Map[Int,String], remove: (Int) => Unit )
+  case class ToDoListProps(items: Seq[String], remove: (Int) => Unit )
   val TodoList = ReactComponentB[ToDoListProps]("TodoList")
     .render(props => {
     <.div(
@@ -35,27 +34,37 @@ object ToDoApp extends JSApp {
         ^.className := "table table-striped",
         <.thead(<.tr(<.th("Task"),<.th("remove"))),
         <.tbody(
-          props.items.map{ case (i , x) => ListItem(ItemProps(i,x,props.remove))}
+          props.items.zipWithIndex.map{ case (i , x) => ListItem(ItemProps(x,i,props.remove))}
         )
       )
     )
   }).build
 
-  case class State(items: scala.collection.mutable.Map[Int,String], text: String)
+  case class State(items: Seq[String], text: String){
+    def removeIndex[A]( list : Seq[A], index: Int): Seq[A] ={
+      val (before,at) = list.splitAt(index)
+      before ++ at.tail
+    }
+    def withoutItem(index: Int): State ={
+      State(removeIndex(items,index),text)
+    }
+
+  }
   class ToDoBackend($: BackendScope[Unit, State]) {
+    val toDoList = Map[Int,String]()
     def onChange(e: ReactEventI) =
       $.modState(_.copy(text = e.target.value))
     def addToDo(e: ReactEventI) = {
       e.preventDefault()
-      $.modState(s => State(s.items += s.items.size + 1 -> s.text  , ""))
+      $.modState{s : State => State(s.items :+ s.text  , "")}
     }
-    def handleRemove(id: Int) = {
-      $.modState(s => State(s.items -= id  , s.text))
+    def handleRemove(index: Int) = {
+      $.modState{s : State => s.withoutItem(index)}
     }
   }
 
   val TodoApp = ReactComponentB[Unit]("TodoApp")
-    .initialState(State(toDoList, ""))
+    .initialState(State(Seq(), ""))
     .backend(new ToDoBackend(_))
     .render((_,S,B) =>
     <.div(
@@ -72,7 +81,6 @@ object ToDoApp extends JSApp {
       TodoList(ToDoListProps(S.items,B.handleRemove))
     )
     ).buildU
-
 
   def main(): Unit ={
     React.render(TodoApp(), document.body)
